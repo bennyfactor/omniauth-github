@@ -1,0 +1,69 @@
+From f367321bcf14a57cc9d501375ffebaba8062f449 Mon Sep 17 00:00:00 2001
+From: Darren Worrall <darren.worrall@shopify.com>
+Date: Tue, 4 Feb 2020 10:52:00 +0000
+Subject: [PATCH] Use header auth mode for user and email requests
+
+Authenticating using query parameters is deprecated:
+
+https://developer.github.com/changes/2019-11-05-deprecated-passwords-and-authorizations-api/#authenticating-using-query-parameters
+---
+ lib/omniauth/strategies/github.rb       |  4 ++--
+ spec/omniauth/strategies/github_spec.rb | 16 ++++++++++++++++
+ 2 files changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/lib/omniauth/strategies/github.rb b/lib/omniauth/strategies/github.rb
+index c60b2d1..fadeaf1 100644
+--- a/lib/omniauth/strategies/github.rb
++++ b/lib/omniauth/strategies/github.rb
+@@ -43,7 +43,7 @@ def authorize_params
+       end
+
+       def raw_info
+-        access_token.options[:mode] = :query
++        access_token.options[:mode] = :header
+         @raw_info ||= access_token.get('user').parsed
+       end
+
+@@ -59,7 +59,7 @@ def primary_email
+       # The new /user/emails API - http://developer.github.com/v3/users/emails/#future-response
+       def emails
+         return [] unless email_access_allowed?
+-        access_token.options[:mode] = :query
++        access_token.options[:mode] = :header
+         @emails ||= access_token.get('user/emails', :headers => { 'Accept' => 'application/vnd.github.v3' }).parsed
+       end
+
+diff --git a/spec/omniauth/strategies/github_spec.rb b/spec/omniauth/strategies/github_spec.rb
+index 302ee61..ccb497d 100644
+--- a/spec/omniauth/strategies/github_spec.rb
++++ b/spec/omniauth/strategies/github_spec.rb
+@@ -122,6 +122,12 @@
+       expect(access_token).to receive(:get).with('user').and_return(response)
+       expect(subject.raw_info).to eq(parsed_response)
+     end
++
++    it 'should use the header auth mode' do
++      expect(access_token).to receive(:get).with('user').and_return(response)
++      subject.raw_info
++      expect(access_token.options[:mode]).to eq(:header)
++    end
+   end
+
+   context '#emails' do
+@@ -133,6 +139,16 @@
+       subject.options['scope'] = 'user'
+       expect(subject.emails).to eq(parsed_response)
+     end
++
++    it 'should use the header auth mode' do
++      expect(access_token).to receive(:get).with('user/emails', :headers => {
++        'Accept' => 'application/vnd.github.v3'
++      }).and_return(response)
++
++      subject.options['scope'] = 'user'
++      subject.emails
++      expect(access_token.options[:mode]).to eq(:header)
++    end
+   end
+
+   context '#info.email' do
